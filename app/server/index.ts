@@ -180,13 +180,20 @@ async function storePDR(pdr: {
     const tmp = `/tmp/pdr-${pdr.id}.json`;
     const pdrJson = JSON.stringify(pdr);
     writeFileSync(tmp, pdrJson);
-    const file = await ZgFile.fromFilePath(tmp);
-    const [tx, err] = await indexer.upload(ZEROG_STORAGE_RPC, signer);
-    file.close();
-    unlinkSync(tmp);
-    if (err) throw err;
-    log(`[0G Storage] PDR stored: 0g://${tx.rootHash}`);
-    return tx.rootHash;
+    
+    let file: Awaited<ReturnType<typeof ZgFile.fromFilePath>> | null = null;
+    try {
+      file = await ZgFile.fromFilePath(tmp);
+      const [tx, err] = await indexer.upload(ZEROG_STORAGE_RPC, signer);
+      if (err) throw err;
+      log(`[0G Storage] PDR stored: 0g://${tx.rootHash}`);
+      return tx.rootHash;
+    } finally {
+      if (file) {
+        try { await file.close(); } catch {}
+      }
+      try { unlinkSync(tmp); } catch {}
+    }
   } catch (e) {
     log(`[0G Storage] Failed (non-blocking): ${e instanceof Error ? e.message : String(e)}`);
     return undefined;
