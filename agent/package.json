@@ -1,0 +1,20 @@
+{
+  "name": "@horoi/agent",
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "monitor": "tsx src/index.ts --monitor-only",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "viem": "^2.21.0",
+    "dotenv": "^16.4.5",
+    "openai": "^4.80.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.5.4",
+    "@types/node": "^22.5.0"
+  }
+}
