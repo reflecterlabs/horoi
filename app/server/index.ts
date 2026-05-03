@@ -23,7 +23,7 @@ import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync, readFileSync, writeFileSync, appendFileSync, unlinkSync } from "fs";
-import { Indexer, ZgFile } from "@0gfoundation/0g-storage-ts-sdk";
+import { Indexer, ZgFile, MemData } from "@0gfoundation/0g-storage-ts-sdk";
 import { ethers } from "ethers";
 import {
   createPublicClient,
@@ -177,23 +177,12 @@ async function storePDR(pdr: {
   try {
     const indexer = getStorageIndexer();
     const signer = getStorageSigner();
-    const tmp = `/tmp/pdr-${pdr.id}.json`;
     const pdrJson = JSON.stringify(pdr);
-    writeFileSync(tmp, pdrJson);
-    
-    let file: Awaited<ReturnType<typeof ZgFile.fromFilePath>> | null = null;
-    try {
-      file = await ZgFile.fromFilePath(tmp);
-      const [tx, err] = await indexer.upload(ZEROG_STORAGE_RPC, signer);
-      if (err) throw err;
-      log(`[0G Storage] PDR stored: 0g://${tx.rootHash}`);
-      return tx.rootHash;
-    } finally {
-      if (file) {
-        try { await file.close(); } catch {}
-      }
-      try { unlinkSync(tmp); } catch {}
-    }
+    const data = new MemData(new TextEncoder().encode(pdrJson));
+    const [tx, err] = await indexer.upload(data, ZEROG_STORAGE_RPC, signer);
+    if (err) throw err;
+    log(`[0G Storage] PDR stored: 0g://${tx.rootHash}`);
+    return tx.rootHash;
   } catch (e) {
     log(`[0G Storage] Failed (non-blocking): ${e instanceof Error ? e.message : String(e)}`);
     return undefined;
