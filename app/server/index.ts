@@ -906,7 +906,8 @@ if (existsSync(distPath)) {
   app.get("*", (_req, res) => res.sendFile(join(distPath, "index.html")));
 }
 
-const PORT = Number(process.env.API_PORT ?? process.env.PORT ?? 3001);
+const PORT = Number(process.env.PORT || 3001);
+console.log("PORT from env:", process.env.PORT, "Using:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`\n  Horoi Governance API on http://0.0.0.0:${PORT}`);
   console.log(`  Wallet:   ${account.address}`);
