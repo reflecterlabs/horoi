@@ -1,6 +1,6 @@
 # 0G Integration Plan — Compute + Storage
 
-**Status**: PLANNED. Code NOT modified yet. Current Unichain Sepolia deployment stays as-is.
+**Status**: Phase 1 DONE. Phase 2 pending.
 
 **Scope**: Two 0G touchpoints — **0G Compute** for agent reasoning, **0G Storage** for Policy Decision Records (PDRs) and Qwen RL model manifest.
 
@@ -14,77 +14,85 @@
 
 ---
 
-## Phase 1 — 0G Compute Router (~30 min)
+## Phase 1 — 0G Compute Router ✅ DONE (2026-05-03)
 
-### 1.1 Get API key
+### What we learned
 
-1. Sign up at https://pc.0g.ai
-2. Generate API key
-3. List available models from dashboard (likely Llama 3.3 70B, DeepSeek R1 family — verify exact name strings)
-4. Add to `agent/.env`:
-   ```
-   ZEROG_COMPUTE_API_KEY=<key>
-   ZEROG_COMPUTE_MODEL=<verified model name>
-   LLM_PROVIDER=zerog
-   ```
+1. **No API key** — 0G Compute uses wallet-based authentication, NOT API keys.
+2. **CLI workflow** — Use `0g-compute-cli` to setup, deposit, and generate bearer tokens (`app-sk-...`).
+3. **OpenAI SDK has issues** — Use native `fetch` instead of OpenAI SDK due to auth header differences.
+4. **Provider must be acknowledged** — You MUST transfer funds and acknowledge the provider before getting a working token.
 
-### 1.2 Smoke test the router
+### 1.1 CLI workflow (how to generate token)
 
 ```bash
-curl https://router-api.0g.ai/v1/models \
-  -H "Authorization: Bearer $ZEROG_COMPUTE_API_KEY"
+# Install CLI
+pnpm add @0gfoundation/0g-compute-ts-sdk -g
+
+# Setup with wallet that has 0G testnet tokens (from faucet.0g.ai)
+0g-compute-cli setup-network
+0g-compute-cli deposit --amount 3  # minimum for ledger
+
+# List available providers
+0g-compute-cli inference list-providers
+
+# Pick one (Qwen 2.5 7B testnet):
+export PROVIDER=0xa48f01287233509FD694a22Bf840225062E67836
+
+# Transfer funds and acknowledge
+0g-compute-cli transfer-fund --provider $PROVIDER --amount 1
+0g-compute-cli inference acknowledge-provider --provider $PROVIDER
+0g-compute-cli inference get-secret --provider $PROVIDER
 ```
 
-Should return a model list. If 401/404 → fix auth before touching code.
+The `get-secret` command returns:
+- `ZG_SERVICE_URL`: e.g., `https://compute-network-6.integratenetwork.work`
+- `ZG_API_SECRET`: e.g., `app-sk-eyJhZGRyZXNzIjoi...`
 
-### 1.3 Wire into reasoning
+### 1.2 Add to `agent/.env`
 
-**File to modify**: `agent/src/reasoning.ts` (or wherever the OpenAI client is constructed — currently uses OpenRouter per `agent/.env`).
+```
+# 0G Compute (testnet)
+ZEROG_COMPUTE_URL=https://compute-network-6.integratenetwork.work
+ZEROG_COMPUTE_API_KEY=app-sk-eyJhZGRyZXNzIjoiMHg4QTBhYzA5NkQ5NDk0ZDY5ZTQ3QkMzYWQxMjA2MGYwYTcyN2ZhQUU0IiwicHJvdmlkZXIiOiIweGE0OGYwMTI4NzIzMzUwOUZENjk0YTIyQmY4NDAyMjUwNjJFNjc4MzYiLCJ0aW1lc3RhbXAiOjE3Nzc3OTc4ODk0NTMsImV4cGlyZXNBdCI6MTc4MDM4OTg4OTQ1Mywibm9uY2UiOiIxNzc3Nzk3ODg5NDUzLWIzeWd3b2RqOGg5MDAwMDAwMCIsImdlbmVyYXRpb24iOjAsInRva2VuSWQiOjB9fDB4NjFjZjEyMTdkOGZhOGJhOWFiZjI0ZTgyNDg2NjY0ZjM3OWJiNTE4MGZjNmM2YWU4MWViYjU5MjJkNzk2N2MyMTA0MTIwMWVlZDA3ODdhOGRmMDEzNzczZTI2OWQ3Y2ExZmVmN2E4MGM4ZDllZWY5MTk4OTM2M2ZkZmMzY2ExNDAxYg==
+ZEROG_COMPUTE_MODEL=qwen/qwen-2.5-7b-instruct
 
-Add a provider switch:
-
-```typescript
-const provider = process.env.LLM_PROVIDER || "openrouter";
-const llm = new OpenAI({
-  baseURL: provider === "zerog"
-    ? "https://router-api.0g.ai/v1"
-    : process.env.LLM_BASE_URL,
-  apiKey: provider === "zerog"
-    ? process.env.ZEROG_COMPUTE_API_KEY
-    : process.env.LLM_API_KEY,
-});
-
-const model = provider === "zerog"
-  ? process.env.ZEROG_COMPUTE_MODEL
-  : process.env.LLM_MODEL;
+# Provider switch: "openrouter" (default) or "zerog"
+LLM_PROVIDER=zerog
 ```
 
-Keep OpenRouter as fallback so we can A/B during demo.
+### 1.3 Code changes
 
-### 1.4 Verify
+**File**: `agent/src/reasoning.ts`
+
+- Added provider switch in constructor (`LLM_PROVIDER` env var)
+- Use native `fetch` instead of OpenAI SDK for 0G (auth header issues)
+- Model: `qwen/qwen-2.5-7b-instruct` (from provider)
+
+**File**: `agent/src/config.ts`
+
+Added:
+- `ZEROG_COMPUTE_URL`
+- `ZEROG_COMPUTE_API_KEY`
+- `ZEROG_COMPUTE_MODEL`
+- `ZEROG_PRIVATE_KEY` (optional, for wallet-based validation)
+- `LLM_PROVIDER` (switch: "openrouter" | "zerog")
+
+### 1.4 Verification
 
 ```bash
 cd agent
-LLM_PROVIDER=zerog node src/run.cjs monitor
+LLM_PROVIDER=zerog npx tsx src/index.ts --monitor-only
 ```
 
-Should connect, fetch state, run reasoning via 0G Compute. Log includes "reasoning powered by 0G Compute" label.
+Should log reasoning via 0G Compute without errors.
 
-### 1.5 Cleanup
+### 1.5 Acceptance
 
-Delete unused placeholder code in `agent/src/adapters/zerog.ts`:
-- `requestInference` (~line 45)
-- `chatCompletion` (~line 80)
-- `ZGInferenceRequest`, `ZGInferenceResponse` types
-
-Keep storage section for Phase 2.
-
-### 1.6 Acceptance
-
-- [ ] `curl /v1/models` returns 200 with model list
-- [ ] Agent monitor loop runs without errors using `LLM_PROVIDER=zerog`
-- [ ] Reasoning output is coherent (not garbage from wrong model name)
-- [ ] Single commit: `feat(agent): wire 0G Compute Router for reasoning`
+- [x] CLI generates working `app-sk-...` token
+- [x] `fetch` call to `/v1/proxy/chat/completions` returns coherent response
+- [x] Agent monitor runs without errors using `LLM_PROVIDER=zerog`
+- [x] Commit: `feat(agent): 0G Compute works - fetch-based, direct auth`
 
 ---
 
@@ -111,6 +119,7 @@ Replace current placeholder `storeToStorage` / `retrieveFromStorage` with real S
 import { ZgFile, Indexer } from '@0gfoundation/0g-storage-ts-sdk';
 import { ethers } from 'ethers';
 import { writeFile, unlink } from 'fs/promises';
+import { readFile } from 'fs/promises';
 
 const STORAGE_RPC = 'https://evmrpc-testnet.0g.ai';
 const INDEXER = 'https://indexer-storage-testnet-turbo.0g.ai';
@@ -230,7 +239,7 @@ After both phases ship:
 | Uniswap | API pool state | ✅ + FEEDBACK.md |
 - | 0G | Compute + Storage | ⏳ Placeholder |
 - | KeeperHub | Tx execution | ⏳ Placeholder |
-+ | 0G Compute | Agent reasoning via Router (OpenAI-compatible) | ✅ |
++ | 0G Compute | Agent reasoning via Router (fetch-based, Qwen 2.5 7B) | ✅ |
 + | 0G Storage | PDRs + model manifest | ✅ |
 - | Gensyn | Multi-agent | ❌ Deferred |
 + | KeeperHub | — | ❌ Dropped (Unichain not supported) |
@@ -243,14 +252,6 @@ Add demo talking points:
 - "Qwen 2.5 1.5B RL-trained alternative model — weights manifest published on 0G Storage"
 
 ---
-
-## Recovery checklist (if session ends mid-work)
-
-1. `git status` — see what's committed
-2. Check `agent/.env` for `ZEROG_COMPUTE_API_KEY` and `ZEROG_STORAGE_PRIVATE_KEY` presence
-3. If Phase 1 not committed but env set → resume at 1.3
-4. If Phase 2 SDK installed but no roundtrip commit → resume at 2.3
-5. Each phase is independently shippable. Do not start Phase 2 until Phase 1 is committed.
 
 ## Engram pointer
 
