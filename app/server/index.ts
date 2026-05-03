@@ -23,6 +23,8 @@ import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync, readFileSync, writeFileSync, appendFileSync } from "fs";
+import { Indexer, ZgFile } from "@0gfoundation/0g-storage-ts-sdk";
+import { ethers } from "ethers";
 import {
   createPublicClient,
   createWalletClient,
@@ -135,6 +137,60 @@ async function chatWithLLM(messages: { role: string; content: string }[], model?
   });
   
   return response.choices[0]?.message?.content ?? "";
+}
+
+// ── 0G Storage Helper (PDR) ───────────────────────────────────────────────
+const ZEROG_STORAGE_RPC = "https://evmrpc-testnet.0g.ai";
+const ZEROG_STORAGE_INDEXER = "https://indexer-storage-testnet-turbo.0g.ai";
+
+let _storageSigner: ethers.Wallet | null = null;
+let _storageIndexer: Indexer | null = null;
+
+function getStorageSigner(): ethers.Wallet {
+  if (!_storageSigner) {
+    const pk = process.env.ZEROG_STORAGE_PRIVATE_KEY;
+    if (!pk) throw new Error("ZEROG_STORAGE_PRIVATE_KEY not set");
+    const provider = new ethers.JsonRpcProvider(ZEROG_STORAGE_RPC);
+    _storageSigner = new ethers.Wallet(pk, provider);
+  }
+  return _storageSigner;
+}
+
+function getStorageIndexer(): Indexer {
+  if (!_storageIndexer) {
+    _storageIndexer = new Indexer(ZEROG_STORAGE_INDEXER);
+  }
+  return _storageIndexer;
+}
+
+async function storePDR(pdr: {
+  id: string;
+  timestamp: number;
+  agent: string;
+  newKp: string;
+  newKi: string;
+  isEmergency: boolean;
+  deviation: number;
+  reasoning: string;
+  txHash: string;
+}): Promise<string | undefined> {
+  try {
+    const indexer = getStorageIndexer();
+    const signer = getStorageSigner();
+    const tmp = `/tmp/pdr-${pdr.id}.json`;
+    const pdrJson = JSON.stringify(pdr);
+    require("fs").writeFileSync(tmp, pdrJson);
+    const file = await ZgFile.fromFilePath(tmp);
+    const [tx, err] = await indexer.upload(ZEROG_STORAGE_RPC, signer);
+    file.close();
+    require("fs").unlinkSync(tmp);
+    if (err) throw err;
+    log(`[0G Storage] PDR stored: 0g://${tx.rootHash}`);
+    return tx.rootHash;
+  } catch (e) {
+    log(`[0G Storage] Failed (non-blocking): ${e instanceof Error ? e.message : String(e)}`);
+    return undefined;
+  }
 }
 
 // ── ABIs (parseAbi for compactness) ───────────────────────────────────────
@@ -468,6 +524,20 @@ What is your decision? (Respond ONLY with valid JSON.)`;
   broadcast("tx", { hash, type: "propose_parameters" });
   await pub.waitForTransactionReceipt({ hash });
   log("Tx confirmed!");
+
+  // Store PDR to 0G Storage (non-blocking)
+  const pdr = {
+    id: `pdr-${Date.now()}`,
+    timestamp: Date.now(),
+    agent: CFG.AGENT_ADDRESS,
+    newKp: newKp.toString(),
+    newKi: newKi.toString(),
+    isEmergency,
+    deviation: state.deviationPct,
+    reasoning: decision.reasoning,
+    txHash: hash,
+  };
+  storePDR(pdr);
 
   const result = { ...decision, txHash: hash };
   // Append to decisions.jsonl so /api/history picks it up
