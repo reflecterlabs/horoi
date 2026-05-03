@@ -45,6 +45,7 @@ export const CONFIG = {
   ZEROG_COMPUTE_URL: process.env.ZEROG_COMPUTE_URL,
   ZEROG_COMPUTE_API_KEY: process.env.ZEROG_COMPUTE_API_KEY,
   ZEROG_COMPUTE_MODEL: process.env.ZEROG_COMPUTE_MODEL ?? "qwen/qwen-2.5-7b-instruct",
+  ZEROG_PRIVATE_KEY: process.env.ZEROG_PRIVATE_KEY,
   
   // Provider switch: "openrouter" (default) or "zerog"
   LLM_PROVIDER: process.env.LLM_PROVIDER ?? "openrouter",

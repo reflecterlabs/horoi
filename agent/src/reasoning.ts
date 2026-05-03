@@ -93,6 +93,10 @@ Example EMERGENCY (KP 8e-7 → 8.67e-7):
 
 export class ReasoningEngine {
   private client: OpenAI;
+  private useFetch = false;
+  private fetchBaseUrl: string;
+  private fetchApiKey: string;
+  private fetchModel: string;
 
   constructor() {
     const provider = CONFIG.LLM_PROVIDER;
@@ -101,17 +105,42 @@ export class ReasoningEngine {
       if (!CONFIG.ZEROG_COMPUTE_URL || !CONFIG.ZEROG_COMPUTE_API_KEY) {
         throw new Error("0G Compute not configured — set ZEROG_COMPUTE_URL and ZEROG_COMPUTE_API_KEY");
       }
-      this.client = new OpenAI({
-        apiKey: CONFIG.ZEROG_COMPUTE_API_KEY,
-        baseURL: `${CONFIG.ZEROG_COMPUTE_URL}/v1/proxy`,
-      });
-    } else {
-      // Default: OpenRouter / OpenAI-compatible
-      this.client = new OpenAI({
-        apiKey: CONFIG.LLM_API_KEY,
-        baseURL: CONFIG.LLM_BASE_URL,
-      });
+      // Use fetch directly — OpenAI SDK has issues with 0G's auth
+      this.useFetch = true;
+      this.fetchBaseUrl = `${CONFIG.ZEROG_COMPUTE_URL}/v1/proxy`;
+      this.fetchApiKey = CONFIG.ZEROG_COMPUTE_API_KEY;
+      this.fetchModel = CONFIG.ZEROG_COMPUTE_MODEL;
     }
+    
+    // Default: OpenRouter / OpenAI-compatible
+    this.client = new OpenAI({
+      apiKey: CONFIG.LLM_API_KEY,
+      baseURL: CONFIG.LLM_BASE_URL,
+    });
+  }
+
+  private async fetchChat(messages: { role: string; content: string }[], model: string, options?: { temperature?: number; max_tokens?: number }): Promise<string> {
+    const response = await fetch(`${this.fetchBaseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${this.fetchApiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: options?.temperature ?? 0.1,
+        max_tokens: options?.max_tokens ?? 2000,
+      }),
+    });
+    
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`0G fetch failed: ${response.status} ${err}`);
+    }
+    
+    const data = await response.json();
+    return data.choices[0]?.message?.content ?? "";
   }
 
   async analyze(state: ProtocolState): Promise<AgentDecision> {
@@ -131,17 +160,28 @@ export class ReasoningEngine {
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        const response = await this.client.chat.completions.create({
-          model: model,
-          messages: [
+        let content: string;
+        
+        if (this.useFetch) {
+          // Use fetch for 0G Compute (SDK has auth issues)
+          content = await this.fetchChat([
             { role: "system", content: SYSTEM_PROMPT },
             { role: "user", content: userPrompt },
-          ],
-          temperature: 0.1,
-          max_tokens: 2000,
-        });
-
-        const content = response.choices[0]?.message?.content;
+          ], model);
+        } else {
+          // Use OpenAI SDK for OpenRouter
+          const response = await this.client.chat.completions.create({
+            model: model,
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT },
+              { role: "user", content: userPrompt },
+            ],
+            temperature: 0.1,
+            max_tokens: 2000,
+          });
+          content = response.choices[0]?.message?.content ?? "";
+        }
+        
         if (!content) return this.fallback("LLM returned empty response");
 
         return this.parseResponse(content);
