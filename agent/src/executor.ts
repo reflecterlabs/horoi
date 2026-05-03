@@ -8,11 +8,13 @@
 import { createWalletClient, createPublicClient, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { CONFIG } from "./config.js";
+import { storePDR, type PDR } from "./adapters/zerog.js";
 
 export interface ExecutionResult {
   txHash: `0x${string}`;
   confirmedKp: bigint;
   confirmedKi: bigint;
+  pdrRootHash?: string;
 }
 
 const GUARD_ABI = parseAbi([
@@ -46,7 +48,9 @@ export class Executor {
   async proposeParameters(
     newKp: bigint,
     newKi: bigint,
-    isEmergency: boolean
+    isEmergency: boolean,
+    decisionReasoning?: string,
+    deviation?: number
   ): Promise<ExecutionResult> {
     // Simulate first to surface revert reasons clearly
     const { request } = await this.pub.simulateContract({
@@ -64,10 +68,34 @@ export class Executor {
       throw new Error(`Tx reverted: ${hash}`);
     }
 
+    // Store PDR to 0G Storage (non-blocking)
+    let pdrRootHash: string | undefined;
+    if (decisionReasoning) {
+      const pdr: PDR = {
+        id: `pdr-${Date.now()}`,
+        timestamp: Date.now(),
+        agent: this.account.address,
+        newKp,
+        newKi,
+        isEmergency,
+        deviation: deviation ?? 0,
+        reasoning: decisionReasoning,
+        txHash: hash,
+      };
+      
+      try {
+        pdrRootHash = await storePDR(pdr);
+        console.log(`[0G Storage] PDR stored: 0g://${pdrRootHash}`);
+      } catch (e) {
+        console.warn(`[0G Storage] Failed (non-blocking): ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
     return {
       txHash: hash,
       confirmedKp: newKp,
       confirmedKi: newKi,
+      pdrRootHash,
     };
   }
 }

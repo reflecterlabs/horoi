@@ -102,7 +102,9 @@ class HoroiAgent {
         const result = await this.executor.proposeParameters(
           decision.new_kp,
           decision.new_ki,
-          decision.is_emergency
+          decision.is_emergency,
+          decision.reasoning,
+          state.deviationPct
         );
         record.tx_hash = result.txHash;
         this.lastConfirmedGains = { kp: result.confirmedKp, ki: result.confirmedKi };
