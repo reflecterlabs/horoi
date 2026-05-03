@@ -471,7 +471,7 @@ export default function Governance() {
                 <div className="log-scroll" ref={logRef}>
                   {isFirstVisit && logs.length === 0 ? (
                     <div className="welcome-message">
-                      <div className="welcome-title">👋 Welcome to Grinta Governance</div>
+                      <div className="welcome-title">👋 Welcome to Horoi Protocol</div>
                       <div className="welcome-subtitle">AI-Driven PID Controller for Stablecoins</div>
                       <div className="welcome-flow">
                         <div className="flow-step">1️⃣ <strong>Crash/Pump</strong> — Simulate BTC price movement</div>
