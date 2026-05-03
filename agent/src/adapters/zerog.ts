@@ -139,8 +139,15 @@ export async function storePDR(pdr: PDR): Promise<string> {
   const indexer = getIndexer();
   const signer = getStorageSigner();
   
+  // Serialize BigInt as strings for JSON
+  const pdrJson = JSON.stringify({
+    ...pdr,
+    newKp: pdr.newKp.toString(),
+    newKi: pdr.newKi.toString(),
+  });
+  
   const tmp = `/tmp/pdr-${pdr.id}.json`;
-  await writeFile(tmp, JSON.stringify(pdr));
+  await writeFile(tmp, pdrJson);
   
   try {
     const file = await ZgFile.fromFilePath(tmp);
@@ -163,7 +170,13 @@ export async function getPDR(rootHash: string): Promise<PDR> {
   try {
     await indexer.download(rootHash, tmp, true);
     const data = await readFile(tmp, "utf-8");
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    // Convert string BigInt back to bigint
+    return {
+      ...parsed,
+      newKp: BigInt(parsed.newKp),
+      newKi: BigInt(parsed.newKi),
+    };
   } finally {
     await unlink(tmp).catch(() => {});
   }
