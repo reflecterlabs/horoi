@@ -95,10 +95,23 @@ export class ReasoningEngine {
   private client: OpenAI;
 
   constructor() {
-    this.client = new OpenAI({
-      apiKey: CONFIG.LLM_API_KEY,
-      baseURL: CONFIG.LLM_BASE_URL,
-    });
+    const provider = CONFIG.LLM_PROVIDER;
+    
+    if (provider === "zerog") {
+      if (!CONFIG.ZEROG_COMPUTE_URL || !CONFIG.ZEROG_COMPUTE_API_KEY) {
+        throw new Error("0G Compute not configured — set ZEROG_COMPUTE_URL and ZEROG_COMPUTE_API_KEY");
+      }
+      this.client = new OpenAI({
+        apiKey: CONFIG.ZEROG_COMPUTE_API_KEY,
+        baseURL: `${CONFIG.ZEROG_COMPUTE_URL}/v1/proxy`,
+      });
+    } else {
+      // Default: OpenRouter / OpenAI-compatible
+      this.client = new OpenAI({
+        apiKey: CONFIG.LLM_API_KEY,
+        baseURL: CONFIG.LLM_BASE_URL,
+      });
+    }
   }
 
   async analyze(state: ProtocolState): Promise<AgentDecision> {
@@ -113,12 +126,13 @@ export class ReasoningEngine {
     const userPrompt = this.buildPrompt(state);
     const maxRetries = 4;
     const baseDelay = 1000;
+    const model = CONFIG.LLM_PROVIDER === "zerog" ? CONFIG.ZEROG_COMPUTE_MODEL : CONFIG.LLM_MODEL;
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const response = await this.client.chat.completions.create({
-          model: CONFIG.LLM_MODEL,
+          model: model,
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
             { role: "user", content: userPrompt },

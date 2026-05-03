@@ -41,6 +41,14 @@ export const CONFIG = {
   LLM_BASE_URL: process.env.LLM_BASE_URL ?? "https://openrouter.ai/api/v1",
   LLM_MODEL: process.env.LLM_MODEL ?? "minimax/minimax-m2.5:free",
 
+  // 0G Compute (testnet) — optional, switched via LLM_PROVIDER
+  ZEROG_COMPUTE_URL: process.env.ZEROG_COMPUTE_URL,
+  ZEROG_COMPUTE_API_KEY: process.env.ZEROG_COMPUTE_API_KEY,
+  ZEROG_COMPUTE_MODEL: process.env.ZEROG_COMPUTE_MODEL ?? "qwen/qwen-2.5-7b-instruct",
+  
+  // Provider switch: "openrouter" (default) or "zerog"
+  LLM_PROVIDER: process.env.LLM_PROVIDER ?? "openrouter",
+
   // Contracts
   ORACLE_RELAYER_ADDRESS: requireEnv("ORACLE_RELAYER_ADDRESS") as `0x${string}`,
   GRINTA_ENGINE_ADDRESS: requireEnv("GRINTA_ENGINE_ADDRESS") as `0x${string}`,
