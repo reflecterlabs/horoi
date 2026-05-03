@@ -4,13 +4,18 @@
   "private": true,
   "description": "Horoi Protocol - AI Governor for CDP Stablecoins",
   "scripts": {
-    "build": "cd app && npm run build",
-    "start": "cd app && npm run start",
+    "install": "cd app && npm install",
+    "build": "cd app && npx vite build",
+    "start": "cd app && npx tsx server/index.ts",
     "dev": "cd app && npm run start:dev",
     "agent": "cd agent && npm run start",
     "agent:monitor": "cd agent && npm run monitor"
   },
   "engines": {
     "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reflecterlabs/horoi"
   }
 }
