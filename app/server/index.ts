@@ -58,7 +58,8 @@ const CFG = {
   PRIVATE_KEY: req("PRIVATE_KEY") as `0x${string}`,
   AGENT_ADDRESS: req("AGENT_ADDRESS") as `0x${string}`,
 
-  LLM_API_KEY: req("LLM_API_KEY"),
+  // LLM - optional if using 0G
+  LLM_API_KEY: process.env.LLM_API_KEY ?? "dummy-for-zerog",
   LLM_BASE_URL: process.env.LLM_BASE_URL ?? "https://openrouter.ai/api/v1",
   LLM_MODEL: process.env.LLM_MODEL ?? "minimax/minimax-m2.5:free",
 
