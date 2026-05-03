@@ -4,10 +4,13 @@
  * 0G Compute Network: serve the Qwen model for decentralized inference
  * 0G Storage: store PDR (Policy Decision Records) for auditability
  * 
- * Docs: https://docs.0g.ai (placeholder — check their docs for actual endpoints)
+ * Docs: https://docs.0g.ai
  */
 
 import { CONFIG } from "../config.js";
+import { Indexer, ZgFile } from "@0gfoundation/0g-storage-ts-sdk";
+import { ethers } from "ethers";
+import { readFile, writeFile, unlink } from "fs/promises";
 
 // ---- Types ----
 
@@ -95,54 +98,30 @@ export async function chatCompletion(
 
 // ---- Storage Adapter ----
 
-/**
- * Store data to 0G Storage (returns CID)
- */
-export async function storeToStorage(data: string): Promise<string> {
-  if (!CONFIG.ZEROG_STORAGE_URL) {
-    throw new Error("0G Storage URL not configured");
+// Lazy-initialized storage components
+let _indexer: Indexer | null = null;
+let _signer: ethers.Wallet | null = null;
+
+function getStorageSigner(): ethers.Wallet {
+  if (!_signer) {
+    if (!CONFIG.ZEROG_STORAGE_PRIVATE_KEY) {
+      throw new Error("ZEROG_STORAGE_PRIVATE_KEY not configured");
+    }
+    const provider = new ethers.JsonRpcProvider(CONFIG.ZEROG_STORAGE_RPC);
+    _signer = new ethers.Wallet(CONFIG.ZEROG_STORAGE_PRIVATE_KEY, provider);
   }
+  return _signer;
+}
 
-  const response = await fetch(`${CONFIG.ZEROG_STORAGE_URL}/store`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      data,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`0G Storage error: ${response.status}`);
+function getIndexer(): Indexer {
+  if (!_indexer) {
+    _indexer = new Indexer(CONFIG.ZEROG_STORAGE_INDEXER);
   }
-
-  const result = await response.json();
-  return result.cid;
+  return _indexer;
 }
 
 /**
- * Retrieve data from 0G Storage by CID
- */
-export async function retrieveFromStorage(cid: string): Promise<string> {
-  if (!CONFIG.ZEROG_STORAGE_URL) {
-    throw new Error("0G Storage URL not configured");
-  }
-
-  const response = await fetch(`${CONFIG.ZEROG_STORAGE_URL}/retrieve/${cid}`, {
-    method: "GET",
-  });
-
-  if (!response.ok) {
-    throw new Error(`0G Storage error: ${response.status}`);
-  }
-
-  const result = await response.json();
-  return result.data;
-}
-
-/**
- * Store PDR (Policy Decision Record)
+ * Store PDR (Policy Decision Record) to 0G Storage
  */
 export interface PDR {
   id: string;
@@ -153,19 +132,61 @@ export interface PDR {
   isEmergency: boolean;
   deviation: number;
   reasoning: string;
+  txHash?: string;
 }
 
 export async function storePDR(pdr: PDR): Promise<string> {
-  const data = JSON.stringify(pdr);
-  return storeToStorage(data);
+  const indexer = getIndexer();
+  const signer = getStorageSigner();
+  
+  const tmp = `/tmp/pdr-${pdr.id}.json`;
+  await writeFile(tmp, JSON.stringify(pdr));
+  
+  try {
+    const file = await ZgFile.fromFilePath(tmp);
+    const [tx, err] = await indexer.upload(file, CONFIG.ZEROG_STORAGE_RPC, signer);
+    await file.close();
+    if (err) throw err;
+    return tx.rootHash;
+  } finally {
+    await unlink(tmp).catch(() => {});
+  }
 }
 
 /**
- * Retrieve PDR from storage
+ * Retrieve PDR from 0G Storage by rootHash
  */
-export async function getPDR(cid: string): Promise<PDR> {
-  const data = await retrieveFromStorage(cid);
-  return JSON.parse(data);
+export async function getPDR(rootHash: string): Promise<PDR> {
+  const indexer = getIndexer();
+  const tmp = `/tmp/pdr-fetch-${Date.now()}.json`;
+  
+  try {
+    await indexer.download(rootHash, tmp, true);
+    const data = await readFile(tmp, "utf-8");
+    return JSON.parse(data);
+  } finally {
+    await unlink(tmp).catch(() => {});
+  }
+}
+
+export async function storeToStorage(data: string): Promise<string> {
+  // Simple wrapper for generic data (uses PDR internally)
+  const pdr: PDR = {
+    id: `generic-${Date.now()}`,
+    timestamp: Date.now(),
+    agent: CONFIG.AGENT_ADDRESS,
+    newKp: 0n,
+    newKi: 0n,
+    isEmergency: false,
+    deviation: 0,
+    reasoning: data,
+  };
+  return storePDR(pdr);
+}
+
+export async function retrieveFromStorage(rootHash: string): Promise<string> {
+  const pdr = await getPDR(rootHash);
+  return pdr.reasoning;
 }
 
 // ---- Fallback utilities ----

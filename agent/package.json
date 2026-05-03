@@ -8,13 +8,15 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "viem": "^2.21.0",
+    "@0gfoundation/0g-storage-ts-sdk": "^1.2.8",
     "dotenv": "^16.4.5",
-    "openai": "^4.80.0"
+    "ethers": "^6.13.1",
+    "openai": "^4.80.0",
+    "viem": "^2.21.0"
   },
   "devDependencies": {
+    "@types/node": "^22.5.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.5.4",
-    "@types/node": "^22.5.0"
+    "typescript": "^5.5.4"
   }
 }
