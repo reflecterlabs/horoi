@@ -60,6 +60,12 @@ const CFG = {
   LLM_BASE_URL: process.env.LLM_BASE_URL ?? "https://openrouter.ai/api/v1",
   LLM_MODEL: process.env.LLM_MODEL ?? "minimax/minimax-m2.5:free",
 
+  // 0G Compute (testnet) — optional
+  ZEROG_COMPUTE_URL: process.env.ZEROG_COMPUTE_URL,
+  ZEROG_COMPUTE_API_KEY: process.env.ZEROG_COMPUTE_API_KEY,
+  ZEROG_COMPUTE_MODEL: process.env.ZEROG_COMPUTE_MODEL ?? "qwen/qwen-2.5-7b-instruct",
+  LLM_PROVIDER: process.env.LLM_PROVIDER ?? "openrouter",
+
   ORACLE_RELAYER_ADDRESS: req("ORACLE_RELAYER_ADDRESS") as `0x${string}`,
   GRINTA_ENGINE_ADDRESS: req("GRINTA_ENGINE_ADDRESS") as `0x${string}`,
   PID_CONTROLLER_ADDRESS: req("PID_CONTROLLER_ADDRESS") as `0x${string}`,
@@ -91,6 +97,45 @@ const wallet: WalletClient = createWalletClient({
 });
 
 const llm = new OpenAI({ apiKey: CFG.LLM_API_KEY, baseURL: CFG.LLM_BASE_URL });
+
+// ── Helper: LLM chat with 0G support ─────────────────────────────────────
+async function chatWithLLM(messages: { role: string; content: string }[], model?: string): Promise<string> {
+  const provider = CFG.LLM_PROVIDER;
+  
+  if (provider === "zerog" && CFG.ZEROG_COMPUTE_URL && CFG.ZEROG_COMPUTE_API_KEY) {
+    const res = await fetch(`${CFG.ZEROG_COMPUTE_URL}/v1/proxy/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${CFG.ZEROG_COMPUTE_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: model || CFG.ZEROG_COMPUTE_MODEL,
+        messages,
+        temperature: 0.1,
+        max_tokens: 2000,
+      }),
+    });
+    
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`0G fetch failed: ${res.status} ${err}`);
+    }
+    
+    const data = await res.json();
+    return data.choices[0]?.message?.content ?? "";
+  }
+  
+  // Default: OpenRouter
+  const response = await llm.chat.completions.create({
+    model: model || CFG.LLM_MODEL,
+    messages,
+    temperature: 0.1,
+    max_tokens: 2000,
+  });
+  
+  return response.choices[0]?.message?.content ?? "";
+}
 
 // ── ABIs (parseAbi for compactness) ───────────────────────────────────────
 const ORACLE_ABI = parseAbi([
@@ -283,17 +328,13 @@ interface LLMResponse {
 async function callLLM(messages: { role: "system" | "user"; content: string }[]): Promise<LLMResponse> {
   const maxRetries = 4;
   const baseDelay = 1000;
+  const model = CFG.LLM_PROVIDER === "zerog" ? CFG.ZEROG_COMPUTE_MODEL : CFG.LLM_MODEL;
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const response = await llm.chat.completions.create({
-        model: CFG.LLM_MODEL,
-        messages,
-        temperature: 0.1,
-        max_tokens: 4000,
-      });
-      return response as unknown as LLMResponse;
+      const content = await chatWithLLM(messages, model);
+      return { choices: [{ message: { content } }] } as unknown as LLMResponse;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       if (lastError.message.includes("429") || lastError.message.toLowerCase().includes("rate")) {
