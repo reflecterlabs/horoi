@@ -156,7 +156,14 @@ npm run start
 
 ## Model Training
 
-We fine-tuned **Qwen 2.5 1.5B Instruct** with GRPO on our Cairo PID environment:
+We fine-tuned **Qwen 2.5 1.5B Instruct** with GRPO on our PID environment:
+
+### Trained Models
+
+| Model | Steps | Link |
+|-------|-------|------|
+| `qwen2.5-1.5B-pid-v1` | 50 | [HuggingFace](https://huggingface.co/Fenryr/qwen2.5-1.5B-pid-v1) |
+| `qwen2.5-1.5B-pid-v2` (recommended) | 200 | [HuggingFace](https://huggingface.co/Fenryr/qwen2.5-1.5B-pid-v2) |
 
 ```python
 # Training reward function
@@ -166,7 +173,46 @@ reward = deviation_reduction + bounds_compliance
 - **Deviation reduction**: % improvement in peg deviation
 - **Bounds compliance**: did the model stay within policy bounds?
 
-Results showed the model learned conservative parameter adjustments within 500 episodes. Not used in production (timing) but demonstrates Horoi's small-model governance thesis.
+Not used in production (timing) but demonstrates Horoi's small-model governance thesis: a 1.5B model can learn to adjust PID parameters within bounded policies.
+
+---
+
+## Research Foundation
+
+Horoi builds on peer-reviewed research in agentic DeFi governance:
+
+### 1. Hyper-Heuristic Driven Smart Contracts for DeFi
+- **Fonte**: Frontiers in Blockchain, 2025
+- **Link**: [https://www.frontiersin.org/journals/blockchain/articles/10.3389/fbloc.2025.1730114/full](https://www.frontiersin.org/journals/blockchain/articles/10.3389/fbloc.2025.1730114/full)
+- **Resumen**: RL controller selecting heuristics for DeFi params. Results: **45.6% more transaction success**, **28.3% less gas**, **38.4% less liquidations** under stress.
+
+### 2. Stablecoin Design with Adversarial-Robust Multi-Agent Systems (MVF-Composer)
+- **Authors**: Shengwei You, Aditya Joshi, Andrey Kuehlkamp, Jarek Nabrzyski
+- **Link**: [https://arxiv.org/abs/2601.22168](https://arxiv.org/abs/2601.22168)
+- **Resumen**: Stress-testing framework for stablecoins. Trust scores filter manipulator signals. **57% less max peg deviation**, **3.1x faster recovery**.
+
+### 3. Who Restores the Peg? A Mean-Field Game Approach
+- **Link**: [https://arxiv.org/abs/2601.18991](https://arxiv.org/abs/2601.18991)
+- **Resumen**: Primary market friction (mint/redeem) matters MORE than secondary liquidity. Validated against USDC March 2023, USDT May/July 2023.
+
+### 4. Hybrid Stabilization Protocol with AI-Driven Arbitrage
+- **Authors**: You, Kuehlkamp, Nabrzyski (Notre Dame)
+- **Link**: [https://arxiv.org/abs/2506.05708](https://arxiv.org/abs/2506.05708)
+- **Resumen**: PID + RL adapting gains based on volatility. **RL risk-aware with adaptive boost/damping**.
+
+### 5. Autonomous Agents on Blockchains
+- **Link**: [https://arxiv.org/abs/2601.04583](https://arxiv.org/abs/2601.04583)
+- **Resumen**: 317 papers review. Defines **TIS (Transaction Intent Schema)** and **PDR (Policy Decision Record)** for auditability. Threat models: prompt injection, key compromise, MEV.
+
+### 6. When AI Meets Stablecoin: Dissecting De-pegging Risk with LLM Agents
+- **Authors**: Congcong Bo, Dehua Shen (Nankai University)
+- **Link**: [https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6121746](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6121746)
+- **Resumen**: Multi-agent LLMs analyzing and **predicting de-pegging risk** from on-chain + sentiment signals.
+
+### 7. Autonomous AI Agents in Decentralized Finance
+- **Authors**: Lennart Ante, Technological Forecasting & Social Change, 2026
+- **Link**: [https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5055677](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5055677)
+- **Resumen**: Taxonomy of 306 AI agents in DeFi. 68% of new DeFi protocols in Q1 2026 include AI — but **NONE in CDP risk governance**. That's our empty space.
 
 ---
 
