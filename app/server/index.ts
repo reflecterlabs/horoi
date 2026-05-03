@@ -22,7 +22,7 @@ import OpenAI from "openai";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import { existsSync, readFileSync, writeFileSync, appendFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, appendFileSync, unlinkSync } from "fs";
 import { Indexer, ZgFile } from "@0gfoundation/0g-storage-ts-sdk";
 import { ethers } from "ethers";
 import {
@@ -179,11 +179,11 @@ async function storePDR(pdr: {
     const signer = getStorageSigner();
     const tmp = `/tmp/pdr-${pdr.id}.json`;
     const pdrJson = JSON.stringify(pdr);
-    require("fs").writeFileSync(tmp, pdrJson);
+    writeFileSync(tmp, pdrJson);
     const file = await ZgFile.fromFilePath(tmp);
     const [tx, err] = await indexer.upload(ZEROG_STORAGE_RPC, signer);
     file.close();
-    require("fs").unlinkSync(tmp);
+    unlinkSync(tmp);
     if (err) throw err;
     log(`[0G Storage] PDR stored: 0g://${tx.rootHash}`);
     return tx.rootHash;
