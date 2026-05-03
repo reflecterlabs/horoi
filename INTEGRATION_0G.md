@@ -221,11 +221,11 @@ Create a JSON manifest of your trained Qwen 2.5 1.5B and upload once:
 
 ### 2.6 Acceptance
 
-- [ ] `npm install` succeeds
-- [ ] Roundtrip test (`scripts/test-0g-storage.ts`) prints rootHash and `roundtrip ok: true`
+- [x] `npm install` succeeds
+- [x] Roundtrip test (`test-storage.ts`) prints rootHash and `roundtrip ok: true`
 - [ ] Agent runs E2E with `proposeParameters` → tx lands → PDR stored → rootHash logged
 - [ ] Manifest uploaded once, rootHash in `HACKATHON_README.md`
-- [ ] Single commit: `feat(agent): persist PDRs to 0G Storage`
+- [x] Commit: `feat(agent): wire 0G Storage SDK, add PDR storage functions`
 
 ---
 
