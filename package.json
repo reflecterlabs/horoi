@@ -1,0 +1,16 @@
+{
+  "name": "horoi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Horoi Protocol - AI Governor for CDP Stablecoins",
+  "scripts": {
+    "build": "cd app && npm run build",
+    "start": "cd app && npm run start",
+    "dev": "cd app && npm run start:dev",
+    "agent": "cd agent && npm run start",
+    "agent:monitor": "cd agent && npm run monitor"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
